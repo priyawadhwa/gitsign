@@ -83,12 +83,14 @@ func commandSign(o *options, s *gsio.Streams, args ...string) error {
 		TimestampAuthority: o.Config.TimestampURL,
 		Armor:              o.FlagArmor,
 		IncludeCerts:       o.FlagIncludeCerts,
+		TlogUpload:         o.Config.TlogUpload,
+		IDToken:            o.Config.IDToken,
 	}
 	if o.Config.MatchCommitter {
 		opts.UserName = o.Config.CommitterName
 		opts.UserEmail = o.Config.CommitterEmail
 	}
-	sig, cert, tlog, err := git.Sign(ctx, rekor, userIdent, dataBuf.Bytes(), opts)
+	sig, cert, tlog, err := git.Sign(ctx, rekor, userIdent, dataBuf.Bytes(), opts, s.TTYOut)
 	if err != nil {
 		return fmt.Errorf("failed to sign message: %w", err)
 	}

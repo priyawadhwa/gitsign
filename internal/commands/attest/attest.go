@@ -73,12 +73,19 @@ func (o *options) Run(ctx context.Context) error {
 		refName = attTreeRef
 	}
 
-	sv, err := sign.SignerFromKeyOpts(ctx, "", "", cosignopts.KeyOpts{
+	keyOpts := cosignopts.KeyOpts{
 		FulcioURL:    o.Config.Fulcio,
 		RekorURL:     o.Config.Rekor,
 		OIDCIssuer:   o.Config.Issuer,
 		OIDCClientID: o.Config.ClientID,
-	})
+		IDToken:      o.Config.IDToken,
+	}
+
+	if o.Config.TlogUpload {
+		keyOpts.RekorURL = ""
+	}
+
+	sv, err := sign.SignerFromKeyOpts(ctx, "", "", keyOpts)
 	if err != nil {
 		return fmt.Errorf("getting signer: %w", err)
 	}

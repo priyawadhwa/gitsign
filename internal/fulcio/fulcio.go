@@ -19,12 +19,15 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"fmt"
+	"io/ioutil"
 	"net/url"
 	"reflect"
 	"strings"
 
 	"github.com/sigstore/fulcio/pkg/api"
 	"github.com/sigstore/sigstore/pkg/oauthflow"
+	"golang.org/x/oauth2"
 )
 
 // Client provides a fulcio client with helpful options for configuring OIDC
@@ -40,6 +43,7 @@ type OIDCOptions struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURL  string
+	IDToken      string
 	TokenGetter  oauthflow.TokenGetter
 }
 
@@ -59,19 +63,33 @@ func NewClient(fulcioURL string, opts OIDCOptions) (*Client, error) {
 func (c *Client) GetCert(priv crypto.Signer) (*api.CertificateResponse, error) {
 	pubBytes, err := x509.MarshalPKIXPublicKey(priv.Public())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal pkix public key: %w", err)
 	}
 
-	tok, err := oauthflow.OIDConnect(c.oidc.Issuer, c.oidc.ClientID, c.oidc.ClientSecret, c.oidc.RedirectURL, c.oidc.TokenGetter)
-	if err != nil {
-		return nil, err
+	var tok *oauthflow.OIDCIDToken
+	if c.oidc.IDToken == "" {
+		tok, err = oauthflow.OIDConnect(c.oidc.Issuer, c.oidc.ClientID, c.oidc.ClientSecret, c.oidc.RedirectURL, c.oidc.TokenGetter)
+		if err != nil {
+			return nil, fmt.Errorf("oidc connect: %w", err)
+		}
+	} else {
+		t, err := ioutil.ReadFile(c.oidc.IDToken)
+		if err != nil {
+			return nil, fmt.Errorf("reading file %s: %w", c.oidc.IDToken, err)
+
+		}
+		getter := &oauthflow.StaticTokenGetter{RawToken: string(t)}
+		tok, err = getter.GetIDToken(nil, oauth2.Config{})
+		if err != nil {
+			return nil, fmt.Errorf("token getter %s: %w", c.oidc.IDToken, err)
+		}
 	}
 
 	// Sign the email address as part of the request
 	h := sha256.Sum256([]byte(tok.Subject))
 	proof, err := priv.Sign(rand.Reader, h[:], nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("private sign: %w", err)
 	}
 
 	cr := api.CertificateRequest{

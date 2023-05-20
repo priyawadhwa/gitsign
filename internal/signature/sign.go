@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"strings"
 
 	cms "github.com/github/smimesign/ietf-cms"
@@ -49,6 +50,11 @@ type SignOptions struct {
 	// UserEmail specifies the email to match against. If present, signing
 	// will fail if the Fulcio identity SAN email does not match the git committer email.
 	UserEmail string
+
+	// Whether or not to upload to a transparency log
+	TlogUpload bool
+	// Path to OIDC token to use for authenticating to Fulcio
+	IDToken string
 }
 
 // Identity is a copy of smimesign.Identity to allow for compatibility without
@@ -69,7 +75,7 @@ type Identity interface {
 
 // Sign signs a given payload for the given identity.
 // The resulting signature and cert used is returned.
-func Sign(ident Identity, body []byte, opts SignOptions) ([]byte, *x509.Certificate, error) {
+func Sign(ident Identity, body []byte, opts SignOptions, out io.Writer) ([]byte, *x509.Certificate, error) {
 	cert, err := ident.Certificate()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get identity certificate: %w", err)
@@ -110,6 +116,7 @@ func Sign(ident Identity, body []byte, opts SignOptions) ([]byte, *x509.Certific
 		if err = sd.AddTimestamps(opts.TimestampAuthority); err != nil {
 			return nil, nil, fmt.Errorf("failed to add timestamp: %w", err)
 		}
+		fmt.Fprintf(out, "got timestamp from %s\n", opts.TimestampAuthority)
 	}
 
 	chain, err := ident.CertificateChain()

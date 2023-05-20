@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"io"
 
 	"github.com/sigstore/gitsign/internal/fulcio"
 	"github.com/sigstore/gitsign/internal/signature"
@@ -28,10 +29,15 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/models"
 )
 
-func Sign(ctx context.Context, rekor rekor.Writer, ident *fulcio.Identity, data []byte, opts signature.SignOptions) ([]byte, *x509.Certificate, *models.LogEntryAnon, error) {
-	sig, cert, err := signature.Sign(ident, data, opts)
+func Sign(ctx context.Context, rekor rekor.Writer, ident *fulcio.Identity, data []byte, opts signature.SignOptions, out io.Writer) ([]byte, *x509.Certificate, *models.LogEntryAnon, error) {
+	sig, cert, err := signature.Sign(ident, data, opts, out)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to sign message: %w", err)
+	}
+
+	if opts.TlogUpload {
+		fmt.Fprintf(out, "skipping upload to tlog\n")
+		return sig, cert, nil, nil
 	}
 
 	// This uploads the commit SHA + sig(commit SHA) to the tlog using the same

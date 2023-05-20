@@ -39,6 +39,8 @@ type Config struct {
 
 	// Address of Rekor server
 	Rekor string
+	// Whether or not to upload to a transparency log
+	TlogUpload bool
 
 	// OIDC client ID for application
 	ClientID string
@@ -50,6 +52,9 @@ type Config struct {
 	// See https://github.com/sigstore/sigstore/blob/c645ceb9d075499f3a4b3f183d3a6864640fa956/pkg/oauthflow/flow.go#L49-L53
 	// for more details.
 	ConnectorID string
+
+	// Path to OIDC token to use for authenticating to Fulcio
+	IDToken string
 
 	// Timestamp Authority address to use to get a trusted timestamp
 	TimestampURL string
@@ -104,6 +109,10 @@ func Get() (*Config, error) {
 		out.ConnectorID = envOrValue(fmt.Sprintf("%s_CONNECTOR_ID", prefix), out.ConnectorID)
 		out.TimestampURL = envOrValue(fmt.Sprintf("%s_TIMESTAMP_SERVER_URL", prefix), out.TimestampURL)
 		out.TimestampCert = envOrValue(fmt.Sprintf("%s_TIMESTAMP_CERT_CHAIN", prefix), out.TimestampCert)
+		out.IDToken = envOrValue(fmt.Sprintf("%s_IDENTITY_TOKEN", prefix), out.IDToken)
+		if os.Getenv(fmt.Sprintf("%s_TLOG_UPLOAD", prefix)) != "" {
+			out.TlogUpload = true
+		}
 	}
 
 	out.LogPath = envOrValue("GITSIGN_LOG", out.LogPath)

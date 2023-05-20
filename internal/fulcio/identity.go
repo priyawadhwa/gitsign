@@ -222,6 +222,7 @@ func (f *IdentityFactory) NewIdentity(ctx context.Context, cfg *config.Config) (
 			ClientID:    clientID,
 			RedirectURL: cfg.RedirectURL,
 			TokenGetter: authFlow,
+			IDToken:     cfg.IDToken,
 		})
 	if err != nil {
 		return nil, fmt.Errorf("error creating Fulcio client: %w", err)
@@ -229,7 +230,7 @@ func (f *IdentityFactory) NewIdentity(ctx context.Context, cfg *config.Config) (
 
 	cert, err := client.GetCert(priv)
 	if err != nil {
-		fmt.Fprintln(f.out, "error getting signer:", err)
+		fmt.Fprintln(f.out, "error getting cert signer:", err)
 		return nil, err
 	}
 
