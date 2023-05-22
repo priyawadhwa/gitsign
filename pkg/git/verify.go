@@ -91,8 +91,6 @@ func Verify(ctx context.Context, git Verifier, rekor rekor.Verifier, data, sig [
 		claims = append(claims, NewClaim(ClaimValidatedRekorEntry, true))
 	}
 
-	
-
 	return &VerificationSummary{
 		Cert:     cert,
 		LogEntry: tlog,

@@ -115,7 +115,7 @@ func (v *CertVerifier) Verify(ctx context.Context, data, sig []byte, detached bo
 		Roots:         v.roots,
 		Intermediates: v.intermediates,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning},
-		// cosign hack: ignore the current time for now - we'll use the tlog to
+		// cosign hack: ignore the current time for now - we'll use the tlog or a TSA to
 		// verify whether the commit was signed at a valid time.
 		CurrentTime: cert.NotBefore.Add(1 * time.Minute),
 	}

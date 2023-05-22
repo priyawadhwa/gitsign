@@ -68,6 +68,8 @@ type Config struct {
 	CommitterName  string
 	CommitterEmail string
 	MatchCommitter bool
+
+	InsecureIgnoreSCT bool
 }
 
 // Get fetches the gitsign config options for the repo in the current working
@@ -112,6 +114,9 @@ func Get() (*Config, error) {
 		out.IDToken = envOrValue(fmt.Sprintf("%s_IDENTITY_TOKEN", prefix), out.IDToken)
 		if os.Getenv(fmt.Sprintf("%s_TLOG_UPLOAD", prefix)) != "" {
 			out.TlogUpload = true
+		}
+		if os.Getenv(fmt.Sprintf("%s_INSECURE_IGNORE_SCT", prefix)) != "" {
+			out.InsecureIgnoreSCT = true
 		}
 	}
 

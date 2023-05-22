@@ -31,6 +31,7 @@ import (
 	"github.com/sigstore/gitsign/pkg/git"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 type options struct {
@@ -39,6 +40,7 @@ type options struct {
 }
 
 func (o *options) AddFlags(cmd *cobra.Command) {
+	viper.AutomaticEnv()
 	o.CertVerifyOptions.AddFlags(cmd)
 }
 
@@ -102,7 +104,9 @@ func (o *options) Run(w io.Writer, args []string) error {
 func PrintSummary(w io.Writer, summary *git.VerificationSummary) {
 	fpr := internal.CertHexFingerprint(summary.Cert)
 
-	fmt.Fprintln(w, "tlog index:", *summary.LogEntry.LogIndex)
+	if summary.LogEntry != nil {
+		fmt.Fprintln(w, "tlog index:", *summary.LogEntry.LogIndex)
+	}
 	fmt.Fprintf(w, "gitsign: Signature made using certificate ID 0x%s | %v\n", fpr, summary.Cert.Issuer)
 
 	ce := cosign.CertExtensions{Cert: summary.Cert}

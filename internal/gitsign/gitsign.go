@@ -28,6 +28,7 @@ import (
 	rekorinternal "github.com/sigstore/gitsign/internal/rekor"
 	"github.com/sigstore/gitsign/pkg/git"
 	"github.com/sigstore/gitsign/pkg/rekor"
+	"github.com/sigstore/gitsign/pkg/tsa"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 )
 
@@ -35,6 +36,7 @@ type Verifier struct {
 	git   git.Verifier
 	cert  cert.Verifier
 	rekor rekor.Verifier
+	tsa   tsa.Verifier
 }
 
 // NewVerifierWithCosignOpts implements a Gitsign verifier using Cosign CertVerifyOptions.
@@ -46,7 +48,7 @@ func NewVerifierWithCosignOpts(ctx context.Context, cfg *config.Config, opts *co
 		return nil, fmt.Errorf("error getting certificate root: %w", err)
 	}
 
-	tsa, err := x509.SystemCertPool()
+	tsaPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("error getting system root pool: %w", err)
 	}
@@ -61,14 +63,14 @@ func NewVerifierWithCosignOpts(ctx context.Context, cfg *config.Config, opts *co
 			return nil, fmt.Errorf("error loading certs from %s: %w", path, err)
 		}
 		for _, c := range cert {
-			tsa.AddCert(c)
+			tsaPool.AddCert(c)
 		}
 	}
 
 	gitverifier, err := git.NewCertVerifier(
 		git.WithRootPool(root),
 		git.WithIntermediatePool(intermediate),
-		git.WithTimestampCertPool(tsa),
+		git.WithTimestampCertPool(tsaPool),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Git verifier: %w", err)
@@ -106,14 +108,23 @@ func NewVerifierWithCosignOpts(ctx context.Context, cfg *config.Config, opts *co
 			CertGithubWorkflowRepository: opts.CertGithubWorkflowRepository,
 			CertGithubWorkflowRef:        opts.CertGithubWorkflowRef,
 			Identities:                   identities,
-			IgnoreSCT:                    opts.IgnoreSCT,
+			IgnoreSCT:                    cfg.InsecureIgnoreSCT,
 		})
+	}
+
+	var tsaverifier tsa.Verifier
+	if tsaPool != nil {
+		tsaverifier, err = tsa.New(cfg.TimestampCert)
+		if err != nil {
+			return nil, fmt.Errorf("error getting tsa verifier: %w", err)
+		}
 	}
 
 	return &Verifier{
 		git:   gitverifier,
 		cert:  certverifier,
 		rekor: rekor,
+		tsa:   tsaverifier,
 	}, nil
 }
 
@@ -121,17 +132,25 @@ func (v *Verifier) Verify(ctx context.Context, data []byte, sig []byte, detached
 	// TODO: we probably want to deprecate git.Verify in favor of this struct.
 	summary, err := git.Verify(ctx, v.git, v.rekor, data, sig, detached)
 	if err != nil {
-		return summary, err
+		return summary, fmt.Errorf("git verify: %w", err)
 	}
 
 	if v.cert != nil {
 		if err := v.cert.Verify(summary.Cert); err != nil {
 			summary.Claims = append(summary.Claims, git.NewClaim(git.ClaimValidatedCerificate, false))
-			return summary, err
+			return summary, fmt.Errorf("cert verify: %w", err)
 		}
 		summary.Claims = append(summary.Claims, git.NewClaim(git.ClaimValidatedCerificate, true))
 	} else {
 		summary.Claims = append(summary.Claims, git.NewClaim(git.ClaimValidatedCerificate, false))
+	}
+
+	summary.Claims = append(summary.Claims, git.NewClaim(git.ClaimValidatedTimestampAuthority, false))
+	if v.tsa != nil {
+		if err := v.tsa.Verify(ctx, data, summary.Cert); err != nil {
+			return summary, fmt.Errorf("tsa verify: %w", err)
+		}
+		summary.Claims = append(summary.Claims, git.NewClaim(git.ClaimValidatedTimestampAuthority, true))
 	}
 
 	return summary, nil
