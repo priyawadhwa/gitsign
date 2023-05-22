@@ -29,7 +29,7 @@ import (
 	gsio "github.com/sigstore/gitsign/internal/io"
 )
 
-// commandSign implements gitsign commit verification.
+// commandVerify implements gitsign commit verification.
 // This is implemented as a root command so that user can specify the
 // gitsign binary directly in their gitconfigs.
 func commandVerify(o *options, s *gsio.Streams, args ...string) error {

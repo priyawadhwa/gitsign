@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -50,9 +51,10 @@ type Claim struct {
 type ClaimCondition string
 
 const (
-	ClaimValidatedSignature  ClaimCondition = "Validated Git signature"
-	ClaimValidatedRekorEntry ClaimCondition = "Validated Rekor entry"
-	ClaimValidatedCerificate ClaimCondition = "Validated Certificate claims"
+	ClaimValidatedSignature          ClaimCondition = "Validated Git signature"
+	ClaimValidatedRekorEntry         ClaimCondition = "Validated Rekor entry"
+	ClaimValidatedCerificate         ClaimCondition = "Validated Certificate claims"
+	ClaimValidatedTimestampAuthority ClaimCondition = "Validated timestamp authority"
 )
 
 func NewClaim(c ClaimCondition, ok bool) Claim {
@@ -79,11 +81,17 @@ func Verify(ctx context.Context, git Verifier, rekor rekor.Verifier, data, sig [
 		return nil, err
 	}
 
-	tlog, err := rekor.Verify(ctx, commit, cert)
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate rekor entry: %w", err)
+	ignoreTlog := os.Getenv("SIGSTORE_IGNORE_TLOG")
+	var tlog *models.LogEntryAnon
+	if ignoreTlog != "true" {
+		tlog, err = rekor.Verify(ctx, commit, cert)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate rekor entry: %w", err)
+		}
+		claims = append(claims, NewClaim(ClaimValidatedRekorEntry, true))
 	}
-	claims = append(claims, NewClaim(ClaimValidatedRekorEntry, true))
+
+	
 
 	return &VerificationSummary{
 		Cert:     cert,
